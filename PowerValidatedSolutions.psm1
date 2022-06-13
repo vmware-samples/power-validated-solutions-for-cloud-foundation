@@ -26094,7 +26094,7 @@ Function New-vRAGroup {
 
         .EXAMPLE
         New-vRAGroup -groupId $orgId -orgId $orgId -serviceDefinitionId $serviceDefinitionId -orgRole $orgRole -serviceRole $serviceRole
-        This example adds a group in vRealize Automation by groupId and orgId and assisgnes the required orgRole only.
+        This example adds a group in vRealize Automation by groupId and orgId and assignes the required orgRole only.
 
         Note: This cmdlet currently only supports a single serviceRole.
     #>
@@ -26150,6 +26150,51 @@ Function New-vRAGroup {
 
 }
 Export-ModuleMember -Function New-vRAGroup
+
+Function Remove-vRAGroup {
+    <#
+        .SYNOPSIS
+        Removes a group's access from vRealize Automation.
+
+        .DESCRIPTION
+        The Remove-vRAGroup cmdlet removes a group in vRealize Automation. The cmdlet searches the IAM for all organization and service roles for a group.
+        If the group name does not exist, no changes are made.
+
+        .EXAMPLE
+        Remove-vRAGroup -displayName "SampleProject@example.com"
+
+        This example removes the group SampleProject in the example.com identity provider from vRealize Automation.
+    #>
+
+    Param (
+        [Parameter (Mandatory = $true)] [ValidateNotNullOrEmpty()] [String]$displayName
+    )
+    Try {
+        $orgId = (Get-vRAOrganizationId).Split("orgs/")[-1]
+        if (Get-vRAGroup -orgId $orgId -displayName $displayName | Where-Object { $_.displayName -eq $displayName }) {
+            $groupId = (Get-vRAGroup -orgId $orgId -displayName $displayName).id
+            if (Get-vRAGroup -orgId $orgId -displayName $displayName | Where-Object { $null -ne $_.organizationRoles.name -or $null -ne $_.serviceRoles.serviceDefinitionId }) {
+                Remove-vRAGroupRoles -groupId $groupId -orgId $orgId | Out-Null
+                if (!(Get-vRAGroup -orgId $orgId -displayName $displayName | Where-Object { $null -ne $_.organizationRoles.name -and $null -ne $_.serviceRoles.serviceRoleNames -and $null -ne $_.serviceRoles.serviceDefinitionId })) {
+                    Write-Output "Removing group ($displayName) from vRealize Automation: SUCCESSFUL"
+                }
+                else {
+                    Write-Error "Removing group ($displayName) from vRealize Automation: POST_VALIDATION_FAILED"
+                }
+            }
+            else {
+                Write-Warning "Removing group ($displayName) from vRealize Automation, does not exist: SKIPPED"
+            }
+        }
+        else {
+            Write-Error "Unable to find group ($displayName) in Workspace ONE Access for vRealize Automation, check group synchronization or displayName: PRE_VALIDATION_FAILED"
+        }
+    }
+    Catch {
+        Debug-ExceptionWriter -object $_
+    }
+}
+Export-ModuleMember -Function Remove-vRAGroup
 
 Function Get-vRAUserRoles {
     <#
